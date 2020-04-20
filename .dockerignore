@@ -1,0 +1,6 @@
+.circleci
+.dockerignore
+Dockerfile
+Dockerfile.prod
+node_modules
+terraform

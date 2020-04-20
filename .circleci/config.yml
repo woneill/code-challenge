@@ -1,0 +1,24 @@
+version: 2.1
+
+orbs:
+  aws-ecs: circleci/aws-ecs@01.1.0
+  docker: circleci/docker@1.0.1
+
+workflows:
+  build-and-deploy:
+    jobs:
+      - docker/publish:
+          dockerfile: "Dockerfile.prod"
+          image: $CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME
+          tag: "${CIRCLE_SHA1}"
+      - aws-ecs/deploy-service-update:
+          filters:
+            branches:
+              only: master
+          requires:
+            - docker/publish
+          family: 'app'
+          cluster-name: 'tf-ecs-cluster'
+          service-name: 'tf-ecs-service'
+          force-new-deployment: true
+          container-image-name-updates: 'container=app,image-and-tag=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME:${CIRCLE_SHA1}'

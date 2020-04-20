@@ -1,68 +1,81 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# Code Challenge
+<!-- TOC depthfrom:2 bulletcharacter:* -->
 
-## Available Scripts
+* [Install dependencies](#install-dependencies)
+    * [Terraform and nodejs via ASDF](#terraform-and-nodejs-via-asdf)
+* [Building locally via Docker](#building-locally-via-docker)
+* [Deploying to ECS Cluster](#deploying-to-ecs-cluster)
+    * [Create ECS cluster](#create-ecs-cluster)
+    * [CI/CD](#cicd)
 
-In the project directory, you can run:
+<!-- /TOC -->
 
-### `npm start`
+## Install dependencies
 
-Runs the app in the development mode.<br />
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+Overall you'll need the following dependencies. Installation details are in section headings below if they're not already available.
 
-The page will reload if you make edits.<br />
-You will also see any lint errors in the console.
+* Terraform 0.12.x
+* nodejs
 
-### `npm test`
+### Terraform and nodejs via ASDF
 
-Launches the test runner in the interactive watch mode.<br />
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+See installation instructions for `asdf` itself at <https://asdf-vm.com/>. Once it's installed, ensure that you have the following plugins installed:
 
-### `npm run build`
+* [terraform](https://github.com/Banno/asdf-hashicorp.git)
+* [nodejs](https://github.com/asdf-vm/asdf-nodejs.git)
+  * Note that there are extra steps involved for checking downloads against OpenPGP signatures from the Node.js release team. You can skip these by setting the environment variable `NODEJS_CHECK_SIGNATURES=no`
 
-Builds the app for production to the `build` folder.<br />
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Check which plugins are installed via `asdf plugin-list`.
 
-The build is minified and the filenames include the hashes.<br />
-Your app is ready to be deployed!
+Install any missing plugins via `asdf plugin-add <pluginname>`.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Once all the plugins are installed, run `asdf install` to ensure that everything listed in [.tool-versions](.tool-versions) gets downloaded and installed.
 
-### `npm run eject`
+## Building locally via Docker
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+The docker configurations are based on <https://mherman.org/blog/dockerizing-a-react-app/>.
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+The quickest way to build and launch the application is by running `docker-compose up -d --build` and then testing access via <http://localhost:3001/>.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+Stopping the container can be done via `docker-compose stop`.
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+## Deploying to ECS Cluster
 
-## Learn More
+An ECS/Fargate cluster can be created via Terraform. The configuration is in [terraform](terraform) and is based on <https://github.com/Oxalide/terraform-fargate-example.git> but ported to Terraform 0.12.x and includes updates to support CI/CD processes.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Create ECS cluster
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Change directories to the [terraform](terraform) directory and edit the [variables.tf](terraform/variables.tf) file, updating the value for `app_image` to point to a dockerhub hosted image. If you plan on using CI/CD deployments as explained below, you can leave the default value as-is since it will be updated on the first deployment.
 
-### Code Splitting
+The Terraform AWS provider assumes credentials with appropriate permissions to build out an ECS cluster are available either via [environment variables](https://www.terraform.io/docs/providers/aws/index.html#environment-variables) or [shared credentials files](https://www.terraform.io/docs/providers/aws/index.html#shared-credentials-file).
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/code-splitting
+```shell
+# Initialize
+terraform init
 
-### Analyzing the Bundle Size
+# Confirm the plan looks appropriate
+terraform plan
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size
+# Create the cluster
+terraform apply -auto-approve
+```
 
-### Making a Progressive Web App
+After `terraform apply` it will output the URL that can be used to access the application. You can also re-retrieve it by running `terraform output service_url`.
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app
+### CI/CD
 
-### Advanced Configuration
+Automated CI/CD is configured by CircleCI via [.circleci/config.yaml](.circleci/config.yml).
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/advanced-configuration
+The overall process is:
 
-### Deployment
+1. Build docker image.
+1. Push to dockerhub.
+1. Update the ECS service and task with the new docker image.
 
-This section has moved here: https://facebook.github.io/create-react-app/docs/deployment
+To configure CircleCI, you'll need to set the following environment variables in the project:
 
-### `npm run build` fails to minify
-
-This section has moved here: https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify
+* AWS_REGION
+* AWS_ACCESS_KEY_ID
+* AWS_SECRET_ACCESS_KEY
+* DOCKER_LOGIN
+* DOCKER_PASSWORD
